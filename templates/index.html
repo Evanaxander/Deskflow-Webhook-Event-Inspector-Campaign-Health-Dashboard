@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deskflow — Campaign Health Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg:       #f5f4f0;
+      --surface:  #ffffff;
+      --border:   #e2e0da;
+      --text:     #1a1a1a;
+      --muted:    #888580;
+      --healthy:  #1a6641;
+      --healthy-bg: #eaf5ee;
+      --warning:  #92400e;
+      --warning-bg: #fef3c7;
+      --source-cio:  #2563eb;
+      --source-apc:  #7c3aed;
+      --source-li:   #0077b5;
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'IBM Plex Sans', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ── Top Nav ── */
+    nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .nav-brand {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .nav-dot {
+      width: 8px; height: 8px;
+      background: #22c55e;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .last-updated {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 7px 14px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.15s;
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .btn:hover { border-color: #aaa; background: #fafaf8; }
+
+    .btn-primary {
+      background: var(--text);
+      color: #fff;
+      border-color: var(--text);
+    }
+
+    .btn-primary:hover { background: #333; border-color: #333; }
+
+    .btn-danger {
+      color: #b91c1c;
+      border-color: #fca5a5;
+    }
+
+    .btn-danger:hover { background: #fef2f2; }
+
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Layout ── */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 28px 24px;
+    }
+
+    /* ── Section Label ── */
+    .section-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    /* ── Stats Row ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 18px 20px;
+    }
+
+    .stat-value {
+      font-family: var(--mono);
+      font-size: 28px;
+      font-weight: 500;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .stat-source { display: flex; align-items: center; gap: 6px; }
+
+    .source-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Main Grid ── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 20px;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-title span {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--muted);
+    }
+
+    /* ── Chart ── */
+    .chart-wrap {
+      position: relative;
+      height: 200px;
+    }
+
+    /* ── Health Panel ── */
+    .health-item {
+      padding: 12px 14px;
+      border-radius: 5px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .health-item:last-child { margin-bottom: 0; }
+
+    .health-item.healthy {
+      background: var(--healthy-bg);
+      border: 1px solid #bbf7d0;
+    }
+
+    .health-item.warning {
+      background: var(--warning-bg);
+      border: 1px solid #fcd34d;
+    }
+
+    .health-icon {
+      font-size: 14px;
+      margin-top: 1px;
+      flex-shrink: 0;
+    }
+
+    .health-source {
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .health-item.healthy .health-source { color: var(--healthy); }
+    .health-item.warning .health-source { color: var(--warning); }
+
+    .health-msg {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    /* ── Threshold Config ── */
+    .threshold-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .threshold-row:last-child { border-bottom: none; }
+
+    .threshold-label { font-size: 12px; }
+    .threshold-sub { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+    .threshold-input {
+      width: 56px;
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 12px;
+      text-align: center;
+      background: var(--bg);
+    }
+
+    .threshold-input:focus { outline: none; border-color: #888; }
+
+    /* ── Bottom Grid ── */
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    /* ── Event Type Bars ── */
+    .type-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .type-row:last-child { margin-bottom: 0; }
+
+    .type-name {
+      font-family: var(--mono);
+      font-size: 11px;
+      width: 160px;
+      flex-shrink: 0;
+      color: var(--text);
+    }
+
+    .type-bar-wrap {
+      flex: 1;
+      height: 6px;
+      background: var(--bg);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .type-bar {
+      height: 100%;
+      background: var(--text);
+      border-radius: 3px;
+      transition: width 0.4s ease;
+    }
+
+    .type-count {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      width: 28px;
+      text-align: right;
+    }
+
+    /* ── Live Feed ── */
+    .feed-wrap {
+      max-height: 260px;
+      overflow-y: auto;
+    }
+
+    .feed-wrap::-webkit-scrollbar { width: 4px; }
+    .feed-wrap::-webkit-scrollbar-track { background: transparent; }
+    .feed-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .feed-item {
+      display: grid;
+      grid-template-columns: 90px 1fr 80px;
+      gap: 8px;
+      align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .feed-item:last-child { border-bottom: none; }
+
+    .feed-source {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 6px;
+      border-radius: 3px;
+      text-align: center;
+    }
+
+    .feed-source.cio { background: #dbeafe; color: var(--source-cio); }
+    .feed-source.apc { background: #ede9fe; color: var(--source-apc); }
+    .feed-source.li  { background: #e0f2fe; color: var(--source-li); }
+
+    .feed-event { color: var(--text); font-family: var(--mono); font-size: 11px; }
+    .feed-campaign { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .feed-time { color: var(--muted); font-family: var(--mono); font-size: 10px; text-align: right; }
+
+    .empty-state {
+      text-align: center;
+      padding: 32px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    /* ── Simulate Panel ── */
+    .simulate-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .simulate-left { display: flex; align-items: center; gap: 12px; }
+
+    .simulate-label { font-size: 13px; font-weight: 500; }
+    .simulate-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+    .simulate-count {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .count-input {
+      width: 56px;
+      padding: 5px 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 12px;
+      text-align: center;
+      background: var(--bg);
+    }
+
+    .count-input:focus { outline: none; border-color: #888; }
+
+    /* ── Progress ── */
+    .sim-progress {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    .sim-progress.active { display: flex; }
+
+    .mini-spinner {
+      width: 14px; height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--text);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+
+<body>
+
+  <!-- Nav -->
+  <nav>
+    <div class="nav-brand">
+      <div class="nav-dot"></div>
+      Deskflow / Campaign Health Dashboard
+    </div>
+    <div class="nav-right">
+      <span class="last-updated" id="last-updated">Connecting...</span>
+      <button class="btn btn-danger" onclick="clearEvents()">Clear Data</button>
+    </div>
+  </nav>
+
+  <div class="container">
+
+    <!-- Simulate Bar -->
+    <div class="simulate-bar">
+      <div class="simulate-left">
+        <div>
+          <div class="simulate-label">Event Simulator</div>
+          <div class="simulate-sub">Send sample webhook events to demonstrate the dashboard</div>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div class="sim-progress" id="sim-progress">
+          <div class="mini-spinner"></div>
+          Sending events...
+        </div>
+        <div class="simulate-count">
+          Events:
+          <input type="number" class="count-input" id="sim-count" value="30" min="5" max="100" />
+        </div>
+        <button class="btn btn-primary" id="btn-simulate" onclick="simulate()">
+          ▶ Simulate Events
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="section-label">Overview</div>
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-value" id="stat-total">0</div>
+        <div class="stat-label">Total Events</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="color: var(--source-cio)" id="stat-cio">0</div>
+        <div class="stat-label stat-source">
+          <span class="source-dot" style="background: var(--source-cio)"></span>
+          Customer.io
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="color: var(--source-apc)" id="stat-apc">0</div>
+        <div class="stat-label stat-source">
+          <span class="source-dot" style="background: var(--source-apc)"></span>
+          Appcues
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="color: var(--source-li)" id="stat-li">0</div>
+        <div class="stat-label stat-source">
+          <span class="source-dot" style="background: var(--source-li)"></span>
+          LinkedIn
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart + Health -->
+    <div class="main-grid">
+      <div class="card">
+        <div class="card-title">
+          Event Volume — Last 24 Hours
+          <span>auto-refreshing every 3s</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="chart-hourly"></canvas>
+        </div>
+      </div>
+
+      <div>
+        <!-- Health Panel -->
+        <div class="card" style="margin-bottom: 12px;">
+          <div class="card-title">Campaign Health</div>
+          <div id="health-panel">
+            <div class="empty-state">Waiting for data...</div>
+          </div>
+        </div>
+
+        <!-- Threshold Config -->
+        <div class="card">
+          <div class="card-title">Thresholds <span>events / hour</span></div>
+          <div class="threshold-row">
+            <div>
+              <div class="threshold-label">Customer.io</div>
+              <div class="threshold-sub">email_opened</div>
+            </div>
+            <input type="number" class="threshold-input" id="th-cio" value="5" min="1" onchange="updateThreshold('Customer.io', this.value)" />
+          </div>
+          <div class="threshold-row">
+            <div>
+              <div class="threshold-label">Appcues</div>
+              <div class="threshold-sub">tour_completed</div>
+            </div>
+            <input type="number" class="threshold-input" id="th-apc" value="3" min="1" onchange="updateThreshold('Appcues', this.value)" />
+          </div>
+          <div class="threshold-row">
+            <div>
+              <div class="threshold-label">LinkedIn</div>
+              <div class="threshold-sub">ad_clicked</div>
+            </div>
+            <input type="number" class="threshold-input" id="th-li" value="2" min="1" onchange="updateThreshold('LinkedIn', this.value)" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom: Event Types + Live Feed -->
+    <div class="bottom-grid">
+      <div class="card">
+        <div class="card-title">Events by Type</div>
+        <div id="type-list"><div class="empty-state">No events yet</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Live Event Feed <span id="feed-count"></span></div>
+        <div class="feed-wrap" id="feed-list">
+          <div class="empty-state">Hit "Simulate Events" to see live data appear here</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // ── Chart Setup ─────────────────────────────────────────────────────────────
+    const ctx = document.getElementById("chart-hourly").getContext("2d");
+    const chart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: [],
+        datasets: [{
+          label: "Events",
+          data: [],
+          backgroundColor: "rgba(26,26,26,0.08)",
+          borderColor: "rgba(26,26,26,0.6)",
+          borderWidth: 1,
+          borderRadius: 3,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { font: { family: "'IBM Plex Mono'", size: 10 }, color: "#888" }
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: "#f0ede8" },
+            ticks: {
+              stepSize: 1,
+              font: { family: "'IBM Plex Mono'", size: 10 },
+              color: "#888"
+            }
+          }
+        }
+      }
+    });
+
+    // ── Source class helper ──────────────────────────────────────────────────────
+    function sourceClass(source) {
+      if (source === "Customer.io") return "cio";
+      if (source === "Appcues")     return "apc";
+      if (source === "LinkedIn")    return "li";
+      return "cio";
+    }
+
+    // ── Render Stats ─────────────────────────────────────────────────────────────
+    function renderStats(data) {
+      document.getElementById("stat-total").textContent = data.total;
+
+      const sourceMap = {};
+      data.by_source.forEach(s => sourceMap[s.source] = s.count);
+      document.getElementById("stat-cio").textContent = sourceMap["Customer.io"] || 0;
+      document.getElementById("stat-apc").textContent = sourceMap["Appcues"]     || 0;
+      document.getElementById("stat-li").textContent  = sourceMap["LinkedIn"]    || 0;
+    }
+
+    // ── Render Chart ─────────────────────────────────────────────────────────────
+    function renderChart(hourly) {
+      chart.data.labels   = hourly.map(h => h.hour);
+      chart.data.datasets[0].data = hourly.map(h => h.count);
+      chart.update("none");   // no animation on poll update
+    }
+
+    // ── Render Health ─────────────────────────────────────────────────────────────
+    function renderHealth(health) {
+      const panel = document.getElementById("health-panel");
+      if (!health.length) {
+        panel.innerHTML = '<div class="empty-state">No data yet</div>';
+        return;
+      }
+      panel.innerHTML = health.map(h => `
+        <div class="health-item ${h.status}">
+          <div class="health-icon">${h.status === "healthy" ? "✓" : "⚠"}</div>
+          <div>
+            <div class="health-source">${h.source}</div>
+            <div class="health-msg">${h.message}</div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    // ── Render Event Types ────────────────────────────────────────────────────────
+    function renderTypes(byType) {
+      const list = document.getElementById("type-list");
+      if (!byType.length) {
+        list.innerHTML = '<div class="empty-state">No events yet</div>';
+        return;
+      }
+      const max = byType[0].count;
+      list.innerHTML = byType.slice(0, 10).map(t => `
+        <div class="type-row">
+          <div class="type-name">${t.event_type}</div>
+          <div class="type-bar-wrap">
+            <div class="type-bar" style="width: ${Math.round((t.count / max) * 100)}%"></div>
+          </div>
+          <div class="type-count">${t.count}</div>
+        </div>
+      `).join("");
+    }
+
+    // ── Render Feed ───────────────────────────────────────────────────────────────
+    let lastFeedTs = null;
+
+    function renderFeed(recent) {
+      const feed = document.getElementById("feed-list");
+      if (!recent.length) {
+        feed.innerHTML = '<div class="empty-state">Hit "Simulate Events" to see live data appear here</div>';
+        document.getElementById("feed-count").textContent = "";
+        return;
+      }
+
+      document.getElementById("feed-count").textContent = `${recent.length} shown`;
+
+      // Only re-render if the newest event changed (avoids flicker)
+      const newestTs = recent[0]?.received_at;
+      if (newestTs === lastFeedTs) return;
+      lastFeedTs = newestTs;
+
+      feed.innerHTML = recent.map(e => `
+        <div class="feed-item">
+          <span class="feed-source ${sourceClass(e.source)}">${e.source}</span>
+          <span class="feed-event">${e.event_type}</span>
+          <span class="feed-time">${e.received_at.slice(11, 19)}</span>
+        </div>
+      `).join("");
+    }
+
+    // ── Poll /api/stats every 3 seconds ──────────────────────────────────────────
+    async function poll() {
+      try {
+        const res  = await fetch("/api/stats");
+        const data = await res.json();
+        renderStats(data);
+        renderChart(data.hourly);
+        renderHealth(data.health);
+        renderTypes(data.by_type);
+        renderFeed(data.recent);
+        document.getElementById("last-updated").textContent =
+          "Updated " + new Date().toLocaleTimeString();
+      } catch (e) {
+        console.error("Poll failed:", e);
+      }
+    }
+
+    poll();
+    setInterval(poll, 3000);
+
+    // ── Simulate ──────────────────────────────────────────────────────────────────
+    async function simulate() {
+      const count = parseInt(document.getElementById("sim-count").value) || 30;
+      const btn   = document.getElementById("btn-simulate");
+      const prog  = document.getElementById("sim-progress");
+
+      btn.disabled = true;
+      prog.classList.add("active");
+
+      try {
+        await fetch("/api/simulate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ count })
+        });
+        // Events trickle in over ~count * 0.15s — polling will pick them up
+        setTimeout(() => {
+          btn.disabled = false;
+          prog.classList.remove("active");
+        }, count * 160 + 500);
+      } catch (e) {
+        btn.disabled = false;
+        prog.classList.remove("active");
+      }
+    }
+
+    // ── Clear ─────────────────────────────────────────────────────────────────────
+    async function clearEvents() {
+      if (!confirm("Clear all events?")) return;
+      await fetch("/api/clear", { method: "POST" });
+      lastFeedTs = null;
+      poll();
+    }
+
+    // ── Threshold Update ──────────────────────────────────────────────────────────
+    // Sends updated threshold to backend so health check recalculates
+    async function updateThreshold(source, value) {
+      await fetch("/api/threshold", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source, value: parseInt(value) })
+      });
+    }
+  </script>
+</body>
+</html>

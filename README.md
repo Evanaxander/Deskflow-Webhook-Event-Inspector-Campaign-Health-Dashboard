@@ -3,7 +3,7 @@
 Real-time dashboard that receives, validates, and visualises webhook events
 from Customer.io, Appcues, and LinkedIn campaign integrations.
 
-https://youtu.be/BaL3mQlGas8?si=BAf_CfbtgM-vnuhk
+Demo Video : https://youtu.be/BaL3mQlGas8?si=BAf_CfbtgM-vnuhk
 
 <img width="792" height="814" alt="image" src="https://github.com/user-attachments/assets/ade2e209-95e2-4dd2-88b6-711cdc5fc8f2" />
 
